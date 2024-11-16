@@ -16,8 +16,8 @@ typedef struct {
     int colorIndex;
 } Tetromino;
 
-Color tetrominoColorsOut[7];
-Color tetrominoColorsIn[7];
+Color tetrominoColorsOut[8];
+Color tetrominoColorsIn[8];
 int score = 0;
 int highscore = 0;
 
@@ -64,10 +64,15 @@ const int TETROMINO_Z[4][4] = {{1, 1, 0, 0},
                                {0, 0, 0, 0},
                                {0, 0, 0, 0}};
 
+const int TETROMINO_Q[4][4] = {{1, 1, 1, 0},
+                               {1, 0, 1, 0},
+                               {1, 1, 1, 0},
+                               {0, 1, 0, 0}};
+
 Tetromino currentTetromino;
 
 // Array of all tetromino shapes
-const int (*tetrominoShapes[])[4] = {TETROMINO_I, TETROMINO_O, TETROMINO_T, TETROMINO_L, TETROMINO_J, TETROMINO_S, TETROMINO_Z};
+const int (*tetrominoShapes[])[4] = {TETROMINO_I, TETROMINO_O, TETROMINO_T, TETROMINO_L, TETROMINO_J, TETROMINO_S, TETROMINO_Z, TETROMINO_Q};
 
 
 // Function prototypes
@@ -109,22 +114,39 @@ int LoadHighscore() {
 }
 
 void SpawnTetromino() {
-    // Randomly choose a tetromino shape
-    int shapeIndex = rand() % 7;
+    // Criação de uma tabela de probabilidades
+    const int probabilities[] = {
+        0, 0, 0, 0, 0, 0, 0, 0, // Ten 0s
+        1, 1, 1, 1, 1, 1, 1, 1, // Ten 1s
+        2, 2, 2, 2, 2, 2, 2, 2, // Ten 2s
+        3, 3, 3, 3, 3, 3, 3, 3, // Ten 3s
+        4, 4, 4, 4, 4, 4, 4, 4, // Ten 4s
+        5, 5, 5, 5, 5, 5, 5, 5, // Ten 5s
+        6, 6, 6, 6, 6, 6, 6, 6, // Ten 6s
+        7
+        };
+
+    // TETROMINO_Q (índice 7) aparece 1 vez, enquanto outros aparecem mais vezes.
+    int size = sizeof(probabilities) / sizeof(probabilities[0]);
+
+    // Escolha do índice com base na probabilidade
+    int shapeIndex = probabilities[rand() % size];
+    
     currentTetromino = (Tetromino){GRID_WIDTH / 2 - 2, 0, {{0}}, 0, shapeIndex};
     memcpy(currentTetromino.shape, tetrominoShapes[shapeIndex], sizeof(currentTetromino.shape));
 }
 
+
 void HandleInput() {
-    if (IsKeyPressed(KEY_LEFT)) {
+    if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A)) {
         currentTetromino.x -= 1;
         if (Collision()) currentTetromino.x += 1;  // Undo if collides
     }
-    if (IsKeyPressed(KEY_RIGHT)) {
+    if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D)) {
         currentTetromino.x += 1;
         if (Collision()) currentTetromino.x -= 1;  // Undo if collides
     }
-    if (IsKeyPressed(KEY_UP)) {
+    if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
         RotateTetromino();
         if (Collision()) RotateTetrominoBack();  // Undo if collides
     }
@@ -279,6 +301,22 @@ void DrawGame() {
 
 
 void RotateTetromino() {
+
+     // Special handling for TETROMINO_Q (index 7)
+    if (currentTetromino.colorIndex == 7) {
+        int temp[4][4] = {{0}};
+
+        // Perform a 90-degree clockwise rotation while preserving symmetry
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                temp[j][3 - i] = currentTetromino.shape[i][j];
+            }
+        }
+
+        // Copy the rotated shape back to the current tetromino
+        memcpy(currentTetromino.shape, temp, sizeof(temp));
+        return;
+    }
     // If the current tetromino is the O tetromino, skip rotation
     if (currentTetromino.colorIndex == 1) {  // colorIndex 1 corresponds to TETROMINO_O
         return;
@@ -338,6 +376,23 @@ void RotateTetromino() {
 }
 
 void RotateTetrominoBack() {
+
+    // Special handling for TETROMINO_Q (index 7)
+    if (currentTetromino.colorIndex == 7) {
+        int temp[4][4] = {{0}};
+
+        // Perform a 90-degree counter-clockwise rotation while preserving symmetry
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                temp[3 - j][i] = currentTetromino.shape[i][j];
+            }
+        }
+
+        // Copy the rotated shape back to the current tetromino
+        memcpy(currentTetromino.shape, temp, sizeof(temp));
+        return;
+    }
+
     // If the current tetromino is the O tetromino, skip rotation
     if (currentTetromino.colorIndex == 1) {  // colorIndex 1 corresponds to TETROMINO_O
         return;
@@ -424,6 +479,7 @@ int main(void) {
     tetrominoColorsOut[4] = DARKSKY;
     tetrominoColorsOut[5] = DARKORANGE;
     tetrominoColorsOut[6] = DARKRED;
+    tetrominoColorsOut[7] = LIGHTGRAY;
     tetrominoColorsIn[0] = BLUE;
     tetrominoColorsIn[1] = GREEN;
     tetrominoColorsIn[2] = PURPLE;
@@ -431,6 +487,7 @@ int main(void) {
     tetrominoColorsIn[4] = SKYBLUE;
     tetrominoColorsIn[5] = ORANGE;
     tetrominoColorsIn[6] = RED;
+    tetrominoColorsIn[7] = WHITE;
 
     InitWindow(GRID_WIDTH * BLOCK_SIZE, GRID_HEIGHT * BLOCK_SIZE, "TeCtris");
     SetWindowIcon(LoadImage("resources/iconeTectris.png"));
@@ -482,7 +539,7 @@ int main(void) {
         float currentTime = GetTime();
 
         // Check if the DOWN key is being held
-        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_W)) {
+        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
             fallInterval = 0.05f;  // Fall twice as fast when the DOWN key is held
         } else {
             fallInterval = 0.5f;  // Normal fall speed
